@@ -29,5 +29,9 @@ pipeline/results/
 pi/results/
 backend/uploads/
 
+# Python bytecode cache
+__pycache__/
+*.pyc
+
 # OS noise
 .DS_Store
