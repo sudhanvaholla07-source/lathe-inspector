@@ -1,0 +1,109 @@
+// Prisma schema for the lathe part inspection backend.
+// Chain: User (auth) | Machine 1—* PartType 1—* Inspection
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MANAGER
+  OPERATOR
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // bcrypt hash, never plaintext
+  name      String
+  role      Role     @default(OPERATOR)
+  createdAt DateTime @default(now())
+}
+
+model Machine {
+  id        String     @id @default(uuid())
+  name      String
+  location  String?
+  partTypes PartType[]
+  createdAt DateTime   @default(now())
+}
+
+model PartType {
+  id                String       @id @default(uuid())
+  name              String
+  referenceImageUrl String       // the known-good image everything gets diffed against
+  machine           Machine      @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  machineId         String
+  inspections       Inspection[]
+  createdAt         DateTime     @default(now())
+
+  @@index([machineId])
+}
+
+enum InspectionResult {
+  PASS
+  FAIL
+  REJECTED // not a recognizable product at all (wrong object, empty frame, etc.) -- excluded from pass/fail counts
+}
+
+enum InspectionMethod {
+  DIFF // classical image-diffing pipeline (current)
+  YOLO // trained model (once deployed)
+}
+
+// A labeled production run. The operator opens a batch ("Order #4521"),
+// every tray scan submitted while it's open accumulates into it, and
+// closing it freezes the record. Counting/variant totals are derived from
+// the member inspections' tray payloads at read time -- no denormalized
+// counters to drift out of sync.
+model Batch {
+  id          String       @id @default(uuid())
+  label       String
+  status      BatchStatus  @default(OPEN)
+  inspections Inspection[]
+  createdAt   DateTime     @default(now())
+  closedAt    DateTime?
+}
+
+enum BatchStatus {
+  OPEN
+  CLOSED
+}
+
+model Inspection {
+  id                String             @id @default(uuid())
+  partType          PartType           @relation(fields: [partTypeId], references: [id], onDelete: Cascade)
+  partTypeId        String
+
+  // Which production batch this scan belongs to (null for scans made
+  // outside any batch, e.g. the older defect-inspection flows).
+  batch             Batch?             @relation(fields: [batchId], references: [id])
+  batchId           String?
+
+  capturedImageUrl  String             // the photo taken on this inspection
+  diffImageUrl      String?            // visual overlay showing what was flagged (diffing method)
+
+  method            InspectionMethod   @default(DIFF)
+  result            InspectionResult   // what the automated pipeline decided
+  score             Float              // diff score (0-1) or YOLO confidence, depending on method
+
+  // Tray inspections only (null for single-part): counts + per-cell results,
+  // e.g. { rows, cols, total, pass, fail, empty, cells: [{row, col, result,
+  // score, box}] }. One JSON column instead of many Int columns because the
+  // per-cell detail matters too (which slots to pull), not just the totals.
+  tray              Json?
+
+  // Manager feedback: confirming or correcting the automated result turns
+  // this inspection into a labeled training example for the eventual YOLO
+  // fine-tuning pass. Null until a manager reviews it.
+  confirmedResult   InspectionResult?
+  confirmedAt       DateTime?
+
+  timestamp         DateTime           @default(now())
+
+  @@index([partTypeId, timestamp])
+}

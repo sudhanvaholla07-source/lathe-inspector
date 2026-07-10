@@ -1,0 +1,33 @@
+# Secrets -- never commit. backend/.env holds DB credentials + JWT secret.
+# backend/.env.example (committed) documents which vars are needed.
+.env
+*.env
+
+# Dependencies (reinstall with npm install)
+node_modules/
+
+# Datasets: gigabytes, licensed separately (MVTec: research-only,
+# KolektorSDD2: CC BY-NC-SA) -- redistribution via a public repo is not
+# clearly permitted, and they're re-downloadable. README says where.
+training data/metal_nut/
+training data/metal_nut.tar.xz
+training data/screw/
+training data/screw.tar.xz
+training data/kolektor/
+training data/*SDD2*.zip
+training data/yolo_dataset*/
+training data/datasets/
+
+# Training runs: logs, plots, checkpoints (release weights live in models/)
+training data/runs/
+training data/smoketest_results/
+training data/yolo11n.pt
+
+# Generated artifacts
+demo/trays/
+pipeline/results/
+pi/results/
+backend/uploads/
+
+# OS noise
+.DS_Store
